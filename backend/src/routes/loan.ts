@@ -4,6 +4,24 @@ import { createLoanSchema } from '../validation.js'
 
 const router  = express.Router()
 
+router.get("/", async (req, res) => {
+  const userId = req.userId;
+  if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+  try {
+    const result = await pool.query(
+      `SELECT id, friend_name, amount, due_date, status
+       FROM loans WHERE user_id = $1
+       ORDER BY created_at DESC, id DESC`,
+      [userId]
+    );
+    return res.status(200).json({ loans: result.rows });
+  } catch (error) {
+    console.error("Error fetching loans:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 
 router.post("/create/loan",async(req,res)=>{
     const parsed = createLoanSchema.safeParse(req.body)
@@ -36,7 +54,6 @@ router.post("/create/loan",async(req,res)=>{
 
 
 router.get("/summary", async (req, res) => {
-
   try {
     const userId = req.userId;
 
@@ -81,6 +98,51 @@ router.get("/summary", async (req, res) => {
   }
 });
 
+
+router.patch("/:id/repay", async (req, res) => {
+  const { id } = req.params;
+  const userId = req.userId;
+
+  if (!id) {
+    return res.status(400).json({ message: "Loan id is required" });
+  }
+
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE loans
+       SET status = 'repaid', repaid_at = NOW()
+       WHERE id = $1 AND user_id = $2 AND status = 'pending'
+       RETURNING *`,
+      [id, userId]
+    );
+
+    if (result.rowCount === 0) {
+      const existingLoan = await pool.query(
+        "SELECT status FROM loans WHERE id = $1 AND user_id = $2",
+        [id, userId]
+      );
+
+      if (existingLoan.rowCount === 0) {
+        return res.status(404).json({ message: "Loan not found" });
+      }
+
+      return res.status(409).json({ message: "Loan has already been repaid" });
+    }
+
+    return res.status(200).json({
+      message: "Loan repaid successfully",
+      loan: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Error repaying loan:", error);
+
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
 
 
 export default router

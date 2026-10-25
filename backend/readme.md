@@ -50,7 +50,7 @@ payload:{
 response 201/400/500
 
 2. patch /loan/:id/repay
-response 200/500
+response 200/401/404/409/500
 
 3. get /loan/summary
 
@@ -64,8 +64,6 @@ response
 
 <!--  -->
 step 3 
-
-
 
 
 

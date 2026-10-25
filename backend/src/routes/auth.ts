@@ -19,8 +19,15 @@ router.post("/otp/create", (req, res) => {
   otpStore.set(mobileNo, { otp, expiresAt: Date.now() + OTP_TTL_MS });
 
 
-  console.log(otp);
-  return res.status(200).json({ message: "otp sent" });
+  // This project has no SMS provider configured. Expose the code only in
+  // non-production so the local app can complete the OTP flow during development.
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`Development OTP for ${mobileNo}: ${otp}`);
+    return res.status(200).json({ message: "otp sent", development_otp: otp });
+  }
+
+  console.log(`OTP requested for ${mobileNo}; configure an SMS provider to deliver it.`);
+  return res.status(503).json({ message: "OTP delivery is not configured. Configure an SMS provider and try again." });
 });
 
 router.post("/otp/validate", async (req, res) => {
